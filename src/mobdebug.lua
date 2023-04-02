@@ -1609,6 +1609,59 @@ local function listen(host, port)
   client:close()
 end
 
+
+-- Starts debugging server
+local function listenremote(host, port)
+  host = host or "*"
+  port = port or mobdebug.port
+
+  local socket = require "socket"
+
+  print("Lua Remote Debugger")
+  print("Run the program you wish to debug")
+
+  local server = socket.bind(host, port)
+  local client = server:accept()
+
+  client:send("STEP\n")
+  client:receive("*l")
+
+  local breakpoint = client:receive("*l")
+  local _, _, file, line = string.find(breakpoint, "^202 Paused%s+(.-)%s+(%d+)%s*$")
+  if file and line then
+    print("Paused at file " .. file )
+    print("Type 'help' for commands")
+  else
+    local _, _, size = string.find(breakpoint, "^401 Error in Execution (%d+)%s*$")
+    if size then
+      print("Error in remote application: ")
+      print(client:receive(size))
+    end
+  end
+
+  print("Please connect port: " .. port+1 )
+  local input_server = socket.bind(host, port+1)
+  local input_client = input_server:accept()
+
+  while true do
+    input_client:send("> ")
+    local input_text = input_client:receive("*l")
+
+    local verbose = function (...)
+        input_client:send(...)
+        input_client:send('\n')
+    end
+
+    local options = {verbose=verbose}
+    local file, _, err = handle(input_text, client,options)
+    if not file and err == false then break end -- completed debugging
+  end
+
+  input_client:close()
+  client:close()
+end
+
+
 local cocreate
 local function coro()
   if cocreate then return end -- only set once
@@ -1646,6 +1699,7 @@ end
 mobdebug.setbreakpoint = set_breakpoint
 mobdebug.removebreakpoint = remove_breakpoint
 mobdebug.listen = listen
+mobdebug.listenremote = listenremote
 mobdebug.loop = loop
 mobdebug.scratchpad = scratchpad
 mobdebug.handle = handle

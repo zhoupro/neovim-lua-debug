@@ -428,4 +428,44 @@ function M.start_server(host, port, do_log)
 end
 
 
+
+function M.mobclient(opts)
+
+    local uv = vim.loop
+
+    local mobclient = uv.new_tcp()
+    local tcp_data = ""
+
+    local tcp_read = coroutine.create(function()
+          while not string.find(tcp_data, "\n") do
+            coroutine.yield()
+          end
+    end)
+
+
+    uv.tcp_connect(mobclient, "127.0.0.1", 8173, function (err)
+      assert(not err, err)
+
+        mobclient:read_start(vim.schedule_wrap(function(err, chunk)
+          if chunk then
+            tcp_data = tcp_data .. chunk
+            coroutine.resume(tcp_read)
+            print(tcp_data)
+            tcp_data = ""
+            mobclient:write("step\n")
+          else
+            mobclient:shutdown()
+            mobclient:close()
+          end
+        end))
+
+    end)
+
+    -- Start the main event loop
+    uv.run()
+
+end
+
+
+
 return M

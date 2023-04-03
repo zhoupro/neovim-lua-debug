@@ -1623,21 +1623,7 @@ local function listenremote(host, port)
   local server = socket.bind(host, port)
   local client = server:accept()
 
-  client:send("STEP\n")
-  client:receive("*l")
-
-  local breakpoint = client:receive("*l")
-  local _, _, file, line = string.find(breakpoint, "^202 Paused%s+(.-)%s+(%d+)%s*$")
-  if file and line then
-    print("Paused at file " .. file )
-    print("Type 'help' for commands")
-  else
-    local _, _, size = string.find(breakpoint, "^401 Error in Execution (%d+)%s*$")
-    if size then
-      print("Error in remote application: ")
-      print(client:receive(size))
-    end
-  end
+  print("Type 'help' for commands")
 
   print("Please connect port: " .. port+1 )
   local input_server = socket.bind(host, port+1)

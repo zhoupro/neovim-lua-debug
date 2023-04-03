@@ -5,6 +5,7 @@ local nvim_server
 local hook_address
 
 local log_filename
+local po
 
 
 -- for now, only accepts a single
@@ -20,6 +21,10 @@ local make_event
 local log
 
 local M = {}
+
+local uv = vim.loop
+
+
 
 function sendProxyDAP(data)
   log(vim.inspect(data))
@@ -137,7 +142,7 @@ function M.start_server(host, port, do_log)
     local breakpoints = {}
 
     function handlers.attach(request)
-       log("handlers.attach")
+      log("handlers.attach")
       sendProxyDAP(make_response(request, {}))
     end
 
@@ -207,7 +212,6 @@ function M.start_server(host, port, do_log)
           scopes = scopes,
         };
       }))
-
     end
 
     function handlers.setBreakpoints(request)
@@ -226,7 +230,7 @@ function M.start_server(host, port, do_log)
         table.insert(results_bps, { verified = true })
         -- log("Set breakpoint at line " .. bp.line .. " in " .. args.source.path)
       end
-    
+
       sendProxyDAP(make_response(request, {
         body = {
           breakpoints = results_bps
@@ -389,6 +393,7 @@ function M.start_server(host, port, do_log)
       }))
 
       M.sendDAP(make_event('initialized'))
+      M.mobclient()
 
       while true do
         local msg
@@ -396,8 +401,8 @@ function M.start_server(host, port, do_log)
           local len = read_header()
           msg = read_body(len.content_length)
         end
-
         local f = handlers[msg.command]
+        print("execCommand")
         log(vim.inspect(msg))
 
         if f then
@@ -426,46 +431,6 @@ function M.start_server(host, port, do_log)
     port = server:getsockname().port
   }
 end
-
-
-
-function M.mobclient(opts)
-
-    local uv = vim.loop
-
-    local mobclient = uv.new_tcp()
-    local tcp_data = ""
-
-    local tcp_read = coroutine.create(function()
-          while not string.find(tcp_data, "\n") do
-            coroutine.yield()
-          end
-    end)
-
-
-    uv.tcp_connect(mobclient, "127.0.0.1", 8173, function (err)
-      assert(not err, err)
-
-        mobclient:read_start(vim.schedule_wrap(function(err, chunk)
-          if chunk then
-            tcp_data = tcp_data .. chunk
-            coroutine.resume(tcp_read)
-            print(tcp_data)
-            tcp_data = ""
-            mobclient:write("step\n")
-          else
-            mobclient:shutdown()
-            mobclient:close()
-          end
-        end))
-
-    end)
-
-    -- Start the main event loop
-    uv.run()
-
-end
-
 
 
 return M
